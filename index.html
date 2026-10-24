@@ -5,7 +5,7 @@
 <p class="tag">A lightweight Debian + XFCE tablet OS that just works in landscape.</p>
 <p>Arrow Silver is a Debian forky (testing) based ARM64 distro built for the PINE64 PineTab2. It boots straight from a microSD card, starts in landscape with the touchscreen already matched to the screen, and gets you to a clean, fast XFCE desktop with Wi-Fi working out of the box. When you're ready, a built-in installer copies it to the tablet's internal storage.</p>
 <ul class="hl"><li>Reliable landscape orientation and touch, from the boot console to the desktop</li><li>Working BES2600 Wi-Fi with bundled firmware</li><li>XFCE 4.20 with a tablet-friendly dock, Spectral Browser and Firefox ESR</li><li>GNOME Software with Flathub preset for easy app installs</li><li>Boot from SD, with an optional one-step install to eMMC (SPI flash is never touched)</li></ul>
-<nav><a class="btn" href="#download">Download</a><a href="#features">Features</a><a href="#install">Install guide</a></nav></div></header>
+<nav><a class="btn" href="#download">Download</a><a href="#features">Features</a><a href="#spectral">Spectral Browser</a><a href="#install">Install guide</a></nav></div></header>
 <main>
 <section id="features"><h2>Overview</h2>
 <p>Raw disk image for the <b>PINE64 PineTab2 (Rockchip RK3566)</b>. Boots from microSD via U-Boot, with an optional installer to internal eMMC. Built from the Arrow Silver ARM64 base system (the same system as the UEFI ISO).</p>
@@ -34,6 +34,23 @@
 <li>Thunar, xfce4-terminal 1.2.0, Mousepad, xfce4-docklike-plugin 0.5.1</li>
 <li>GStreamer codecs (base, good, bad, ugly, libav, gl, alsa, pulseaudio)</li>
 <li>curl, wget, rsync, parted, cloud-guest-utils, DKMS/build tools with kernel headers</li></ul></section>
+<section id="spectral"><h2>Spectral Browser</h2>
+<p>Spectral Browser is a small, privacy-focused tabbed web browser written in Go on GTK 3 and WebKit2GTK 4.1. It comes preinstalled in Arrow Silver for PineTab2.</p>
+<ul>
+<li><b>HTTPS-only browsing:</b> <code>http://</code> addresses are upgraded to HTTPS. If a site only works over HTTP, you can load it over HTTP for that session. Local addresses are left alone.</li>
+<li><b>Tracker and ad blocking:</b> blocks about 95,000 known tracker and ad hosts from EasyPrivacy and EasyList.</li>
+<li><b>Cookies are off unless you allow them:</b> a 🛡/🍪 button switches cookies on or off for each site. Third-party cookies are always blocked, and Google's domains count as one site, with an <em>Allow cookies for Google</em> bar so Google sign-in works.</li>
+<li><b>Cookies cleared on close:</b> all cookies are deleted when the browser closes (on by default). The data unallowed sites stored in the browser is deleted too.</li>
+<li><b>Ghost Panel (F8):</b> a live view of active connections, outgoing requests (blocked ones in red, third-party in orange) and incoming responses. It only monitors while it is open. Closing it stops monitoring and erases what it collected, lists are capped, and nothing is written to disk.</li>
+<li><b>Hardened by default:</b> web pages run in a bubblewrap sandbox. DNS prefetch and WebRTC are off, and pages can't open pop-ups or read the clipboard on their own. Camera, mic, location and notification requests are denied unless you allow them.</li>
+<li><b>Private windows</b> and <b>Clear browsing data</b>.</li>
+<li><b>Tabs:</b> drag to reorder, open links in background tabs, and use full keyboard shortcuts (Ctrl+T/W/Tab/1–9).</li>
+<li><b>Downloads:</b> a save dialog that never overwrites files without asking, a progress bar, and a Downloads window. Pages can be saved as HTML or <code>.mhtml</code> archives, and the right-click menu has save and open-in-new-tab options.</li>
+<li><b>Favorites bar, homepage, dark mode,</b> and DuckDuckGo search from the address bar.</li>
+<li><b>Light on resources:</b> a smaller page cache (1.3.2) and a Ghost Panel that uses nothing while it is closed.</li>
+</ul>
+<p><b>Version 1.3.2</b> · Licensed under <b>GPL-3.0</b>. Spectral Browser is not hosted on GitHub; it ships with the image.</p>
+</section>
 <section id="install"><h2>Install guide</h2><ol>
 <li><b>Flash to microSD</b> (erases the card; replace <code>/dev/mmcblkX</code>):<pre>xz -dc arrow-silver-pinetab2-2026-10-23.img.xz | sudo dd of=/dev/mmcblkX bs=64M status=progress conv=fsync &amp;&amp; sync</pre></li>
 <li><b>Boot from SD.</b> The root partition grows to fill the card on first boot.</li>
