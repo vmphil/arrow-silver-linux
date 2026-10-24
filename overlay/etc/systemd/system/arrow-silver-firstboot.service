@@ -1,0 +1,14 @@
+[Unit]
+Description=Arrow Silver first-boot: expand root filesystem
+DefaultDependencies=no
+After=local-fs.target
+Before=getty.target graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/arrow-silver-firstboot
+RemainAfterExit=yes
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

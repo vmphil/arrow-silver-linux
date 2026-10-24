@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="Pop"/>
+    <!-- Compositing on so the Docklike dock is see-through.
+         unredirect_overlays lets fullscreen games bypass the compositor. -->
+    <property name="use_compositing" type="bool" value="true"/>
+    <property name="unredirect_overlays" type="bool" value="true"/>
+    <property name="vblank_mode" type="string" value="auto"/>
+    <property name="show_dock_shadow" type="bool" value="false"/>
+    <property name="show_popup_shadow" type="bool" value="false"/>
+    <property name="show_frame_shadow" type="bool" value="true"/>
+  </property>
+</channel>

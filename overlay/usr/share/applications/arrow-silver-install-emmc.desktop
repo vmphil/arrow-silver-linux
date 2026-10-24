@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Install Arrow Silver to internal storage
+Comment=Copy this SD card system onto the PineTab2 eMMC (erases the factory install)
+Exec=x-terminal-emulator -e /usr/local/bin/arrow-silver-install-emmc-launch
+Icon=drive-harddisk
+Terminal=false
+Categories=System;

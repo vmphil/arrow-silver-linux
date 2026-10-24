@@ -1,0 +1,418 @@
+#!/bin/bash
+# arrow-silver-install-emmc: copy the running Arrow Silver (booted from SD)
+# onto the PineTab2's internal eMMC. ERASES the whole eMMC, including the
+# factory DanctNix/Arch install and its bootloader.
+#
+#   sudo arrow-silver-install-emmc --dry-run          # show the plan, change nothing
+#   sudo arrow-silver-install-emmc                    # asks you to type ERASE
+#   sudo arrow-silver-install-emmc --yes-i-understand # scripted, no prompt
+#
+# Layout written (same as the SD image, but filling the eMMC):
+#   0-16 MiB  GPT + U-Boot (u-boot-rockchip.bin at sector 64)
+#   p1 512 MiB ext4 "AS-boot-emmc"  /boot   (legacy_boot flag)
+#   p2 rest    ext4 "AS-root-emmc"  /
+# New filesystems get fresh UUIDs, so SD and eMMC never clash.
+#
+# Test hooks (for dry-run testing off-device only):
+#   ARROW_SYSFS=/path/to/fake/sys  ARROW_ROOT_DISK=mmcblk1
+set -euo pipefail
+
+UBOOT_BIN=${ARROW_UBOOT_BIN:-/usr/lib/arrow-silver/u-boot-rockchip.bin}
+UBOOT_SHA_FILE=${ARROW_UBOOT_SHA:-$UBOOT_BIN.sha256}
+SYSFS=${ARROW_SYSFS:-/sys}
+LOG=/var/log/arrow-silver-install-emmc.log
+BOOT_START_MIB=16
+BOOT_SIZE_MIB=512
+BOOT_LABEL=AS-boot-emmc
+ROOT_LABEL=AS-root-emmc
+MARGIN_MIB=1024
+
+DRY=0
+YES=0
+for a in "$@"; do
+	case "$a" in
+		--dry-run|-n) DRY=1 ;;
+		--yes-i-understand) YES=1 ;;
+		-h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+		*) echo "unknown argument: $a (try --dry-run)" >&2; exit 2 ;;
+	esac
+done
+
+say()  { echo "==> $*"; }
+info() { echo "    $*"; }
+die()  { echo; echo "ERROR: $*" >&2; echo "Nothing more was changed. Log: $LOG" >&2; exit 1; }
+run()  { if [[ $DRY -eq 1 ]]; then echo "    [dry-run] $*"; else info "+ $*"; "$@"; fi; }
+
+# ---------------------------------------------- user step (2026-10-19) ---
+# BEGIN-USER-FNS  (all prompts read /dev/tty; the password is never logged)
+LIVE_USER=ArrowSilver
+ulog() { echo "    [user] $*"; }
+tty_read() { local __v; IFS= read -r -p "$2" __v </dev/tty 2>/dev/tty; printf -v "$1" '%s' "$__v"; }
+tty_yesno() { # $1 prompt  $2 default y|n
+	local a; while :; do
+		tty_read a "$1 [$( [[ $2 == y ]] && echo Y/n || echo y/N )]: "
+		a=${a:-$2}; case ${a,,} in y|yes) return 0 ;; n|no) return 1 ;; esac
+	done
+}
+user_exists() { grep -q "^$2:" "$1/etc/passwd"; }   # $1 root $2 name
+valid_new_user() { # $1 root $2 name -> 0 ok, prints reason on failure
+	[[ $2 == "$LIVE_USER" ]] && return 0
+	[[ $2 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "use lowercase letters, digits, _ or - (max 32, start with a letter or _)"; return 1; }
+	user_exists "$1" "$2" && { echo "'$2' already exists"; return 1; }
+	return 0
+}
+live_groups() { # $1 root -> comma list of the live user's supplementary groups
+	awk -F: -v u="$LIVE_USER" '{n=split($4,m,","); for(i=1;i<=n;i++) if(m[i]==u){printf "%s%s",s,$1; s=","}}' "$1/etc/group"
+}
+fix_autologin() { # $1 root $2 newuser $3 keep(1)|off(0)
+	local f
+	for f in "$1/etc/lightdm/lightdm.conf" "$1"/etc/lightdm/lightdm.conf.d/*.conf; do
+		[[ -f $f ]] || continue
+		grep -qE "^[[:space:]]*autologin-user[[:space:]]*=[[:space:]]*$LIVE_USER[[:space:]]*$" "$f" || continue
+		if [[ $3 -eq 1 ]]; then
+			sed -i -E "s/^([[:space:]]*autologin-user[[:space:]]*=[[:space:]]*)$LIVE_USER[[:space:]]*$/\1$2/" "$f"
+			ulog "autologin -> $2 in ${f#$1}"
+		else
+			sed -i -E "s/^([[:space:]]*autologin-user[[:space:]]*=.*)$/#\1/" "$f"
+			ulog "autologin disabled in ${f#$1}"
+		fi
+	done </dev/null
+}
+fix_sudoers() { # $1 root: drop live-user NOPASSWD entries
+	local f
+	for f in "$1"/etc/sudoers.d/*; do
+		[[ -f $f ]] || continue
+		grep -qE "^[[:space:]]*$LIVE_USER[[:space:]].*NOPASSWD" "$f" || continue
+		sed -i -E "/^[[:space:]]*$LIVE_USER[[:space:]].*NOPASSWD/d" "$f"
+		if ! grep -qvE '^[[:space:]]*(#|$)' "$f"; then rm -f "$f"; ulog "removed ${f#$1} (live NOPASSWD)"
+		else ulog "removed live NOPASSWD line from ${f#$1}"; fi
+	done </dev/null
+}
+copy_desktop() { # $1 root $2 newuser
+	local src=$1/home/$LIVE_USER dst=$1/home/$2 d
+	[[ -d $src ]] || { ulog "no $src, nothing to copy"; return 0; }
+	for d in .config .local Desktop .xsession .xprofile .gtkrc-2.0 .face; do
+		[[ -e $src/$d ]] || continue
+		rsync -a --exclude='*.deb' --exclude='*cache*' --exclude='*Cache*' \
+			--exclude='Screenshot*' --exclude='screenshot*' --exclude='*.png.tmp' \
+			--exclude='.local/share/Trash/' --exclude='.local/share/recently-used.xbel' \
+			--exclude='user-dirs.dirs' --exclude='user-dirs.locale' \
+			"$src/$d" "$dst/" </dev/null
+	done
+	ulog "copied desktop setup from /home/$LIVE_USER"
+}
+hide_installer() { # $1 target root: drop installer launchers on the INSTALLED system only
+	local r=$1 f
+	[[ -n $r && $r != / ]] || die "hide_installer: refusing to act on the running system"
+	for f in usr/share/applications/arrow-silver-install-emmc.desktop \
+		usr/share/applications/arrow-silver-install.desktop \
+		usr/share/applications/calamares.desktop \
+		usr/local/share/applications/arrow-silver-install-emmc.desktop \
+		etc/xdg/autostart/arrow-silver-live-desktop.desktop; do
+		rm -f "$r/$f"
+	done
+	find "$r/etc/skel" "$r/home" "$r/root" \( -path '*/Desktop/*' -o -path '*/.local/share/applications/*' \) \
+		\( -name 'arrow-silver-install*.desktop' -o -name 'calamares.desktop' \) -delete 2>/dev/null || true
+	if find "$r/usr/share/applications" "$r/etc/skel" "$r/home" -name 'arrow-silver-install*.desktop' 2>/dev/null | grep -q .; then
+		die "installer launcher still present on the eMMC target"
+	fi
+	ulog "installer launchers removed from the eMMC system (SD system untouched)"
+}
+
+user_step() { # uses $MNT, $DRY
+	say "Create your own user on the eMMC"
+	if [[ $DRY -eq 1 ]]; then
+		info "[dry-run] would ask for username, full name and password (twice, hidden) on /dev/tty"
+		info "[dry-run] would run: chroot \$MNT useradd -m -s /bin/bash -c NAME -G $(live_groups / 2>/dev/null || echo '<live groups>') USER"
+		info "[dry-run] would set the password with chpasswd via a pipe inside the chroot"
+		info "[dry-run] would copy .config/.local/Desktop from /home/$LIVE_USER (no caches, .deb, screenshots or user-dirs files)"
+		info "[dry-run] would fix LightDM autologin (ask, default no), drop $LIVE_USER NOPASSWD sudoers"
+		info "[dry-run] would ask to remove $LIVE_USER (default yes: userdel -r; no: passwd -l)"
+		info "[dry-run] would chown -R man:man /var/cache/man"
+		info "[dry-run] would remove the installer launchers from the eMMC copy only: usr/share/applications/arrow-silver-install-emmc.desktop (+ arrow-silver-install/calamares), etc/xdg/autostart/arrow-silver-live-desktop.desktop, and any copies in etc/skel, home/*/Desktop and home/*/.local/share/applications"
+		return 0
+	fi
+	local U NAME P1 P2 why GRP AL=0
+	while :; do
+		tty_read U "New username (lowercase, e.g. phil): "
+		why=$(valid_new_user "$MNT" "$U") && break
+		echo "    $why" >/dev/tty
+	done
+	tty_read NAME "Full name (optional): "
+	while :; do
+		IFS= read -r -s -p "Password for $U: " P1 </dev/tty 2>/dev/tty; echo >/dev/tty
+		IFS= read -r -s -p "Type it again: " P2 </dev/tty 2>/dev/tty; echo >/dev/tty
+		[[ -n $P1 && $P1 == "$P2" ]] && break
+		echo "    empty or did not match, try again" >/dev/tty
+	done
+	unset P2
+	if [[ $U == "$LIVE_USER" ]]; then
+		ulog "keeping $LIVE_USER, setting a new password"
+	else
+		GRP=$(live_groups "$MNT")
+		ulog "useradd $U (groups: ${GRP:-none})"
+		chroot "$MNT" useradd -m -s /bin/bash -c "$NAME" ${GRP:+-G "$GRP"} "$U" </dev/null || die "useradd $U failed"
+		copy_desktop "$MNT" "$U"
+		chroot "$MNT" chown -R "$U:$U" "/home/$U" </dev/null || die "chown /home/$U failed"
+	fi
+	printf '%s:%s\n' "$U" "$P1" | chroot "$MNT" chpasswd || die "chpasswd failed"
+	unset P1
+	ulog "password set for $U"
+	tty_yesno "Log in automatically as $U (no password at boot)?" n && AL=1
+	fix_autologin "$MNT" "$U" "$AL"
+	if [[ $U != "$LIVE_USER" ]]; then
+		fix_sudoers "$MNT"
+		if tty_yesno "Remove the $LIVE_USER live account (password 'live')?" y; then
+			chroot "$MNT" userdel -r "$LIVE_USER" </dev/null 2>&1 | sed 's/^/    /' || true
+			user_exists "$MNT" "$LIVE_USER" && { chroot "$MNT" passwd -l "$LIVE_USER" </dev/null; ulog "userdel failed; $LIVE_USER locked"; } || ulog "$LIVE_USER removed"
+		else
+			chroot "$MNT" passwd -l "$LIVE_USER" </dev/null >/dev/null && ulog "$LIVE_USER kept but locked (passwd -l)"
+		fi
+	else
+		fix_sudoers "$MNT"
+	fi
+	if chroot "$MNT" id man >/dev/null 2>&1 </dev/null; then
+		chroot "$MNT" chown -R man:man /var/cache/man </dev/null && ulog "/var/cache/man -> man:man"
+	fi
+}
+# END-USER-FNS
+
+if [[ $DRY -eq 0 ]]; then
+	[[ $(id -u) -eq 0 ]] || { echo "Run as root: sudo $0" >&2; exit 1; }
+	exec > >(tee -a "$LOG") 2>&1
+	echo "=== arrow-silver-install-emmc $(date -Is) ==="
+fi
+
+MNT=
+WRITING=0
+cleanup() {
+	local rc=$?
+	set +e
+	if [[ -n $MNT && -d $MNT ]]; then
+		sync
+		mountpoint -q "$MNT/boot" && umount "$MNT/boot"
+		mountpoint -q "$MNT" && umount "$MNT"
+		rmdir "$MNT/boot" "$MNT" 2>/dev/null
+	fi
+	if [[ $rc -ne 0 ]]; then
+		echo "Stopped with exit code $rc. The SD card system is untouched." >&2
+		if [[ $WRITING -eq 1 ]]; then
+			echo "The eMMC was partly written (factory install already gone); fix the error and run this again." >&2
+		else
+			echo "The eMMC was not touched." >&2
+		fi
+	fi
+	exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
+
+# ------------------------------------------------------------- 1. find disks
+say "Finding the running disk and the internal eMMC"
+if [[ -n ${ARROW_ROOT_DISK:-} ]]; then
+	ROOT_DISK=$ARROW_ROOT_DISK
+else
+	ROOT_SRC=$(findmnt -no SOURCE /)
+	[[ -b $ROOT_SRC ]] || die "running / ($ROOT_SRC) is not a block device"
+	ROOT_DISK=$(lsblk -no PKNAME "$ROOT_SRC" | head -1)
+	[[ -n $ROOT_DISK ]] || die "cannot find the disk holding / ($ROOT_SRC)"
+fi
+info "running system (/) is on: /dev/$ROOT_DISK"
+
+EMMC=()
+for d in "$SYSFS"/block/mmcblk*; do
+	n=${d##*/}
+	[[ $n =~ ^mmcblk[0-9]+$ ]] || continue   # skip boot0/boot1/rpmb hardware parts
+	t=$(cat "$d/device/type" 2>/dev/null || echo "?")
+	info "found /dev/$n  type=$t"
+	[[ $t == MMC ]] && EMMC+=("$n")
+done
+[[ ${#EMMC[@]} -eq 1 ]] || die "expected exactly one eMMC (type MMC), found ${#EMMC[@]}: ${EMMC[*]:-none}"
+TGT_NAME=${EMMC[0]}
+TGT=/dev/$TGT_NAME
+[[ $TGT_NAME != "$ROOT_DISK" ]] || die "the eMMC $TGT is the disk you are running from. Boot from the SD card first."
+ROOT_TYPE=$(cat "$SYSFS/block/$ROOT_DISK/device/type" 2>/dev/null || echo "?")
+[[ $ROOT_TYPE == SD ]] || die "running system is on /dev/$ROOT_DISK (type '$ROOT_TYPE'), not an SD card. Refusing."
+
+part() { [[ $1 =~ [0-9]$ ]] && echo "${1}p$2" || echo "$1$2"; }
+P1=$(part "$TGT" 1)
+P2=$(part "$TGT" 2)
+
+TGT_BYTES=$(( $(cat "$SYSFS/block/$TGT_NAME/size") * 512 ))
+TGT_MIB=$(( TGT_BYTES / 1024 / 1024 ))
+MODEL=$(cat "$SYSFS/block/$TGT_NAME/device/name" 2>/dev/null || echo unknown)
+
+if [[ -n ${ARROW_ROOT_DISK:-} ]]; then
+	USED_MIB=4096
+else
+	USED_K=$(df -Pk / /boot | awk 'NR>1{s+=$3} END{print s}')
+	USED_MIB=$(( USED_K / 1024 ))
+fi
+NEED_MIB=$(( BOOT_START_MIB + BOOT_SIZE_MIB + USED_MIB + USED_MIB / 5 + MARGIN_MIB ))
+info "used on SD system: ${USED_MIB} MiB, need on target: ${NEED_MIB} MiB, eMMC: ${TGT_MIB} MiB"
+[[ $TGT_MIB -ge $NEED_MIB ]] || die "eMMC too small (${TGT_MIB} MiB < ${NEED_MIB} MiB)"
+
+# ---------------------------------------------------- 2. check bundled U-Boot
+say "Checking the bundled U-Boot"
+[[ -f $UBOOT_BIN ]] || die "missing $UBOOT_BIN"
+[[ -f $UBOOT_SHA_FILE ]] || die "missing $UBOOT_SHA_FILE"
+WANT=$(awk '{print $1; exit}' "$UBOOT_SHA_FILE")
+HAVE=$(sha256sum "$UBOOT_BIN" | awk '{print $1}')
+[[ -n $WANT && $WANT == "$HAVE" ]] || die "U-Boot checksum mismatch (want $WANT, have $HAVE)"
+UB_BYTES=$(stat -c %s "$UBOOT_BIN")
+(( 64 * 512 + UB_BYTES <= BOOT_START_MIB * 1024 * 1024 )) || die "U-Boot ($UB_BYTES bytes) does not fit before ${BOOT_START_MIB} MiB"
+info "OK: $UBOOT_BIN  sha256 $HAVE  ($UB_BYTES bytes)"
+
+# --------------------------------------------------------- 3. show + confirm
+echo
+echo "################################################################"
+echo "#  TARGET:  $TGT   ($MODEL, $((TGT_MIB / 1024)) GiB, internal eMMC)"
+echo "#  SOURCE:  /dev/$ROOT_DISK (the SD card you are running now)"
+echo "################################################################"
+echo "Current contents of $TGT:"
+lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINTS "$TGT" 2>/dev/null | sed 's/^/    /' || info "(lsblk unavailable)"
+cat <<WARN
+
+  !!!  WARNING  !!!
+  This PERMANENTLY ERASES the whole internal storage ($TGT):
+  the factory DanctNix / Arch Linux install, its bootloader, and every
+  file on it. There is no undo.
+
+  Plan:
+    1. unmount any $TGT partitions, wipefs, zero the first ${BOOT_START_MIB} MiB
+    2. new GPT: $P1 ${BOOT_SIZE_MIB} MiB ext4 "$BOOT_LABEL" (legacy_boot), $P2 rest ext4 "$ROOT_LABEL"
+    3. write U-Boot at sector 64
+    4. copy this running system (/ and /boot) with rsync
+    5. point fstab + extlinux.conf at the new UUIDs
+    6. create your own user (asks name + password), retire ArrowSilver/live
+    7. remove the "Install to internal storage" option from the eMMC copy
+WARN
+echo
+
+if [[ $DRY -eq 1 ]]; then
+	user_step
+	say "Dry run: stopping here. Nothing was changed."
+	trap - EXIT
+	exit 0
+fi
+if [[ $YES -eq 1 ]]; then
+	info "--yes-i-understand given: not asking."
+else
+	read -r -p "Type ERASE (capitals) to wipe $TGT and install, anything else cancels: " ans
+	[[ $ans == ERASE ]] || { echo "Cancelled. Nothing was changed."; exit 0; }
+fi
+
+# ------------------------------------------------------------ 4. partition
+WRITING=1
+say "Unmounting anything on $TGT"
+while read -r _dev mp; do
+	[[ -n $mp ]] || continue
+	run umount "$mp"
+done < <(lsblk -lnpo NAME,MOUNTPOINT "$TGT" | awk 'NF==2')
+for s in $(lsblk -lnpo NAME,TYPE "$TGT" | awk '$2=="part"{print $1}'); do
+	swapon --show=NAME --noheadings | grep -qx "$s" && run swapoff "$s"
+done
+
+say "Wiping old signatures"
+for p in $(lsblk -lnpo NAME,TYPE "$TGT" | awk '$2=="part"{print $1}'); do
+	run wipefs -a "$p"
+done
+run wipefs -a "$TGT"
+run dd if=/dev/zero of="$TGT" bs=1M count=$BOOT_START_MIB conv=fsync status=none
+
+say "Creating GPT"
+run parted -s "$TGT" mklabel gpt
+run parted -s "$TGT" unit MiB mkpart boot ext4 $BOOT_START_MIB $((BOOT_START_MIB + BOOT_SIZE_MIB))
+run parted -s "$TGT" unit MiB mkpart root ext4 $((BOOT_START_MIB + BOOT_SIZE_MIB)) 100%
+run parted -s "$TGT" set 1 legacy_boot on
+partprobe "$TGT" 2>/dev/null || true
+for _ in $(seq 1 40); do
+	udevadm settle --timeout=5 2>/dev/null || true
+	[[ -b $P1 && -b $P2 ]] && break
+	sleep 0.5
+done
+[[ -b $P1 && -b $P2 ]] || die "$P1 / $P2 did not appear"
+parted -s "$TGT" print | sed 's/^/    /'
+
+say "Writing U-Boot at sector 64"
+run dd if="$UBOOT_BIN" of="$TGT" bs=512 seek=64 conv=fsync,notrunc status=none
+sync
+
+say "Formatting (fresh UUIDs)"
+run mkfs.ext4 -F -q -L "$BOOT_LABEL" "$P1"
+run mkfs.ext4 -F -q -L "$ROOT_LABEL" "$P2"
+NEW_BOOT_UUID=$(blkid -s UUID -o value "$P1")
+NEW_ROOT_UUID=$(blkid -s UUID -o value "$P2")
+OLD_ROOT_UUID=$(findmnt -no UUID /)
+OLD_BOOT_UUID=$(findmnt -no UUID /boot || true)
+[[ -n $NEW_BOOT_UUID && -n $NEW_ROOT_UUID && -n $OLD_ROOT_UUID ]] || die "could not read UUIDs"
+[[ $NEW_ROOT_UUID != "$OLD_ROOT_UUID" && $NEW_BOOT_UUID != "${OLD_BOOT_UUID:-x}" ]] || die "UUID clash"
+info "eMMC boot UUID=$NEW_BOOT_UUID  root UUID=$NEW_ROOT_UUID"
+
+# ------------------------------------------------------------------ 5. copy
+MNT=$(mktemp -d /run/arrow-emmc.XXXXXX)
+mount "$P2" "$MNT"
+mkdir -p "$MNT/boot"
+mount "$P1" "$MNT/boot"
+
+say "Copying / (this takes a while)"
+set +e
+rsync -aHAXx --numeric-ids --info=progress2 \
+	--exclude=/proc/ --exclude=/sys/ --exclude=/dev/ --exclude=/run/ \
+	--exclude=/tmp/ --exclude=/mnt/ --exclude=/media/ --exclude=/boot/ \
+	--exclude=lost+found --exclude=/swapfile --exclude=/swap.img \
+	--exclude="${LOG#/}" \
+	/ "$MNT/"
+rc=$?
+set -e
+[[ $rc -eq 0 || $rc -eq 24 ]] || die "rsync of / failed ($rc)"
+mkdir -p "$MNT"/{proc,sys,dev,run,tmp,mnt,media}
+chmod 1777 "$MNT/tmp"
+
+say "Copying /boot"
+rsync -aHAXx --numeric-ids --exclude=lost+found /boot/ "$MNT/boot/" || die "rsync of /boot failed"
+
+# ------------------------------------------------------------- 6. fix-ups
+say "Pointing fstab and extlinux at the eMMC"
+sed -i "s/$OLD_ROOT_UUID/$NEW_ROOT_UUID/g" "$MNT/etc/fstab"
+[[ -n $OLD_BOOT_UUID ]] && sed -i "s/$OLD_BOOT_UUID/$NEW_BOOT_UUID/g" "$MNT/etc/fstab"
+grep -q "$NEW_ROOT_UUID" "$MNT/etc/fstab" || die "fstab rewrite failed"
+n=0
+while IFS= read -r -d '' conf; do
+	sed -i -E "s/root=UUID=[0-9a-fA-F-]+/root=UUID=$NEW_ROOT_UUID/g" "$conf"
+	info "updated $conf"
+	n=$((n + 1))
+done < <(find "$MNT/boot" -name extlinux.conf -print0)
+[[ $n -ge 1 ]] || die "no extlinux.conf on the new /boot"
+grep -q "root=UUID=$NEW_ROOT_UUID" "$MNT/boot/extlinux/extlinux.conf" || die "extlinux rewrite failed"
+# zz-arrow-extlinux only changes kernel versions, never UUIDs: nothing to do.
+# First-boot expand: p2 already fills the eMMC, so growpart/resize2fs would
+# be no-ops anyway; disable it to keep the first eMMC boot clean.
+rm -f "$MNT/etc/systemd/system/multi-user.target.wants/arrow-silver-firstboot.service"
+grep -v '^[[:space:]]*#' "$MNT/etc/fstab" | sed 's/^/    fstab: /'
+grep -h 'APPEND' "$MNT/boot/extlinux/extlinux.conf" | head -1 | sed 's/^\s*/    extlinux: /'
+
+user_step
+say "Removing the installer option from the installed system"
+hide_installer "$MNT"
+
+say "Syncing and unmounting"
+sync
+umount "$MNT/boot"
+umount "$MNT"
+rmdir "$MNT" 2>/dev/null || true
+MNT=
+
+cat <<DONE
+
+Done. Arrow Silver is on the internal eMMC ($TGT).
+
+Next steps:
+  1. Power off:          sudo poweroff
+  2. Take out the SD card (and unplug the UART adapter if it is in).
+  3. Power on. The tablet now boots Arrow Silver from internal storage.
+     Log in with the user you just created.
+If it does not boot: put the SD card back, hold the UART adapter's
+SD BOOT switch ON at power-on, and you are back on the SD system.
+Log: $LOG
+DONE

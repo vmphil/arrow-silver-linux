@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 2026-10-20: PineTab2 battery icon via Power Manager (uses upower; rk817 charger reports type USB, which the panel battery plugin shows as ac-offline) -->
+<channel name="xfce4-power-manager" version="1.0">
+  <property name="xfce4-power-manager" type="empty">
+    <property name="show-tray-icon" type="bool" value="true"/>
+  </property>
+</channel>

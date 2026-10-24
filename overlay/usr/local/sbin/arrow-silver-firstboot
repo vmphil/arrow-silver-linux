@@ -1,0 +1,35 @@
+#!/bin/bash
+# 2026-10-20: PineTab2 has no clock battery; keep time synced over the network
+systemctl enable --now systemd-timesyncd.service 2>/dev/null || true
+timedatectl set-ntp true 2>/dev/null || true
+# Expand the root partition + filesystem to fill the disk (once).
+# Safe to re-run: growpart/resize2fs are no-ops when already at full size.
+set -euo pipefail
+LOG=/var/log/arrow-silver-firstboot.log
+exec >>"$LOG" 2>&1
+echo "=== arrow-silver-firstboot $(date -Is) ==="
+
+ROOT_SRC=$(findmnt -n -o SOURCE /)
+[[ -n $ROOT_SRC ]] || { echo "no root mount"; exit 1; }
+# Resolve to a real block device (drop /dev/mapper etc. — we expect /dev/mmcblkXp2)
+if [[ ! -b $ROOT_SRC ]]; then
+	echo "root $ROOT_SRC is not a block device; skip expand"
+	exit 0
+fi
+PKNAME=$(lsblk -no PKNAME "$ROOT_SRC" | head -1)
+# 2026-10-19: lsblk has no PARTNUM column (util-linux 2.41 errors out); read sysfs.
+PARTNUM=$(cat "/sys/class/block/$(basename "$(readlink -f "$ROOT_SRC")")/partition" 2>/dev/null || true)
+[[ -n $PKNAME && -n $PARTNUM ]] || { echo "cannot resolve disk for $ROOT_SRC"; exit 0; }
+DISK=/dev/$PKNAME
+echo "root=$ROOT_SRC disk=$DISK part=$PARTNUM"
+
+if command -v growpart >/dev/null 2>&1; then
+	growpart "$DISK" "$PARTNUM" || echo "growpart: already at full size (or failed non-fatally)"
+else
+	echo "growpart not installed; skip partition expand"
+fi
+resize2fs "$ROOT_SRC" || echo "resize2fs: already at full size (or failed non-fatally)"
+
+# Drop ourselves so we only run once from systemd (service is oneshot RemainAfterExit)
+systemctl disable arrow-silver-firstboot.service 2>/dev/null || true
+echo "done"

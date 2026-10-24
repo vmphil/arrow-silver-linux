@@ -1,0 +1,214 @@
+From 8399ffe718501b1d6f68c4f9605af31cfae1d14c Mon Sep 17 00:00:00 2001
+From: Arrow Silver <arrowsilver@localhost>
+Date: Tue, 6 Oct 2026 10:48:07 -0500
+Subject: [PATCH] arm64: dts: rockchip: pinetab2: add BES2600 WLAN and BT nodes
+
+WLAN and Bluetooth bits from DanctNIX linux-pinetab2 v7.1.8-danctnix1
+(rk3566-pinetab2*.dts*), rebased onto Linux 7.2.8: vcc_wl regulator,
+SDIO power sequence (RK817 32 kHz clock + reset), bes2600 SDIO child
+node with wake GPIOs, BES2600 BT UART node on uart1.
+Not included: USB-C/extcon, SPI-NOR clock, SD SDR50, GPU regulator.
+---
+ .../dts/rockchip/rk3566-pinetab2-v0.1.dts     |  6 +-
+ .../dts/rockchip/rk3566-pinetab2-v2.0.dts     | 23 ++++-
+ .../boot/dts/rockchip/rk3566-pinetab2.dtsi    | 83 +++++++++++++++++++
+ 3 files changed, 110 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v0.1.dts b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v0.1.dts
+index 5fe6ca5..ccb8f89 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v0.1.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v0.1.dts
+@@ -24,5 +24,9 @@
+ };
+ 
+ &sdmmc1 {
+-	vmmc-supply = <&vcc3v3_sys>;
++	mmc-pwrseq = <&sdio_pwrseq>;
++};
++
++&vcc_wl {
++	gpio = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
+ };
+diff --git a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v2.0.dts b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v2.0.dts
+index 9349541..a86d58c 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v2.0.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2-v2.0.dts
+@@ -7,6 +7,16 @@
+ / {
+ 	model = "Pine64 PineTab2 v2.0";
+ 	compatible = "pine64,pinetab2-v2.0", "pine64,pinetab2", "rockchip,rk3566";
++
++	sdio_pwrkey: sdio-pwrkey {
++		compatible = "mmc-pwrseq-simple";
++		clocks = <&rk817 1>;
++		clock-names = "ext_clock";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wifi_pwrkey>;
++		reset-gpios = <&gpio3 RK_PD3 GPIO_ACTIVE_HIGH>;
++		post-power-on-delay-ms = <500>;
++	};
+ };
+ 
+ &gpio_keys {
+@@ -41,8 +51,19 @@
+ 			rockchip,pins = <0 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>;
+ 		};
+ 	};
++
++	wifi {
++		wifi_pwrkey: wifi-pwrkey {
++			rockchip,pins = <3 RK_PD3 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++	};
+ };
+ 
+ &sdmmc1 {
+-	vmmc-supply = <&vcc_sys>;
++	mmc-pwrseq = <&sdio_pwrseq &sdio_pwrkey>;
++};
++
++&vcc_wl {
++	enable-active-high;
++	gpio = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
+ };
+diff --git a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2.dtsi b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2.dtsi
+index 08bf40d..4738495 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3566-pinetab2.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3566-pinetab2.dtsi
+@@ -13,6 +13,7 @@
+ 	chassis-type = "tablet";
+ 
+ 	aliases {
++		ethernet0 = &bes2600;
+ 		mmc0 = &sdhci;
+ 		mmc1 = &sdmmc0;
+ 	};
+@@ -134,6 +135,16 @@
+ 		};
+ 	};
+ 
++	sdio_pwrseq: sdio-pwrseq {
++		compatible = "mmc-pwrseq-simple";
++		clocks = <&rk817 1>;
++		clock-names = "ext_clock";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wifi_reset>;
++		reset-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_LOW>;
++		post-power-on-delay-ms = <200>;
++	};
++
+ 	speaker_amp: speaker-amplifier {
+ 		compatible = "simple-audio-amplifier";
+ 		pinctrl-names = "default";
+@@ -227,6 +238,20 @@
+ 		vin-supply = <&vcc_bat>;
+ 	};
+ 
++	vcc_wl: vcc_wl {
++		compatible = "regulator-fixed";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wifi_pwren>;
++		regulator-name = "vcc_wl";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		vin-supply = <&vcc3v3_sys>;
++
++		regulator-state-mem {
++			regulator-off-in-suspend;
++		};
++	};
++
+ 	vdd1v2_dvp: regulator-vdd1v2-dvp {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "vdd1v2_dvp";
+@@ -658,6 +683,20 @@
+ };
+ 
+ &pinctrl {
++	bt {
++		bt_reg_on_h: bt-reg-on-h {
++			rockchip,pins = <0 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++
++		bt_wake_host_h: bt-wake-host-h {
++			rockchip,pins = <0 RK_PB5 RK_FUNC_GPIO &pcfg_pull_down>;
++		};
++
++		host_wake_bt_h: host-wake-bt-h {
++			rockchip,pins = <0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++	};
++
+ 	camerab {
+ 		camerab_pdn_l: camerab-pdn-l {
+ 			rockchip,pins = <4 RK_PB3 RK_FUNC_GPIO &pcfg_pull_none>;
+@@ -777,6 +816,18 @@
+ 			rockchip,pins = <0 RK_PB7 RK_FUNC_GPIO &pcfg_pull_none>;
+ 		};
+ 
++		wifi_pwren: wifi-pwren {
++			rockchip,pins = <0 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++
++		wifi_reg_on_h: wifi-reg-on-h {
++			rockchip,pins = <0 RK_PC0 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++
++		wifi_reset: wifi-reset {
++			rockchip,pins = <3 RK_PD2 RK_FUNC_GPIO &pcfg_pull_none>;
++		};
++
+ 		wifi_wake_host_h: wifi-wake-host-h {
+ 			rockchip,pins = <0 RK_PC4 RK_FUNC_GPIO &pcfg_pull_down>;
+ 		};
+@@ -850,8 +901,19 @@
+ 		     &sdmmc1_cmd
+ 		     &sdmmc1_clk>;
+ 	sd-uhs-sdr104;
++	vmmc-supply = <&vcc_wl>;
+ 	vqmmc-supply = <&vcca1v8_pmu>;
+ 	status = "okay";
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	bes2600: wifi@0 {
++		compatible = "bestechnic,bes2600-sdio";
++		reg = <0>;
++		/* reset (gpio3 PD2) is driven by sdio_pwrseq, as in DanctNIX */
++		wakeup-gpios = <&gpio0 RK_PB7 GPIO_ACTIVE_LOW>;
++		host-wakeup-gpios = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
++	};
+ };
+ 
+ &sfc {
+@@ -877,6 +939,27 @@
+ 	status = "okay";
+ };
+ 
++&uart1 {
++	pinctrl-0 = <&uart1m0_ctsn>, <&uart1m0_rtsn>, <&uart1m0_xfer>;
++	pinctrl-names = "default";
++	uart-has-rtscts;
++	status = "okay";
++
++	bluetooth {
++		compatible = "bestechnic,bes2600-btuart";
++		interrupts-extended = <&gpio0 RK_PB5 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "wakeup";
++		wakeup-source;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&bt_reg_on_h>, <&bt_wake_host_h>, <&host_wake_bt_h>;
++
++		power-gpios = <&gpio0 RK_PC1 GPIO_ACTIVE_HIGH>;
++		wakeup-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_HIGH>;
++		host-wakeup-gpios = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
++	};
++};
++
+ &uart2 {
+ 	status = "okay";
+ };
+-- 
+2.47.3
+

@@ -1,0 +1,24 @@
+# Arrow Silver — PineTab2 U-Boot pin
+#
+# Source project: https://github.com/inindev/uboot-rockchip
+# Release tag:    v2026.04  (published 2026-04-16)
+# Asset:          rk3566-pinetab2.zip
+# Upstream tree:  https://github.com/u-boot/u-boot/tree/v2026.04
+# ATF (rk35*):    ARM Trusted Firmware lts-v2.14.1
+#
+# Binary used for SD/eMMC images (NOT SPI):
+#   u-boot-rockchip.bin  — combined idbloader + u-boot.itb
+# Flash offset: sector 64 = 32 KiB
+#   dd if=u-boot-rockchip.bin of=<device-or-image> bs=512 seek=64 conv=notrunc,fsync
+#   (equivalent: bs=32k seek=1)
+#
+# Licence: U-Boot is GPL-2.0; ATF has its own licence (see upstream).
+# We redistribute the prebuilt binary under the terms of those upstream
+# projects. Arrow Silver does NOT flash SPI by default — SD/eMMC only.
+#
+# Zip URL:
+#   https://github.com/inindev/uboot-rockchip/releases/download/v2026.04/rk3566-pinetab2.zip
+# Zip SHA256:
+#   adfed313c652f296544952a2361c4992688809acd09b09be23cddec659792a3c
+# u-boot-rockchip.bin SHA256 (from upstream sha256sums.txt):
+#   91b5fb6eb7107ee574c996d227ff9072dbc7d3be3df759e1f48d90ba3b437b9a

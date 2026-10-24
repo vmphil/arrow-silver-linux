@@ -1,0 +1,4 @@
+# Arrow Silver: WebKitGTK workaround for virtual GPUs (Spectral Browser).
+if command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -q --vm; then
+    export WEBKIT_DISABLE_DMABUF_RENDERER=1
+fi

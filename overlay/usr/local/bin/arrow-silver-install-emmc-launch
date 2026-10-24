@@ -1,0 +1,11 @@
+#!/bin/bash
+# Run from the menu launcher inside a terminal; keeps the window open.
+if command -v sudo >/dev/null && sudo -n true 2>/dev/null; then
+	sudo /usr/local/sbin/arrow-silver-install-emmc "$@"
+elif command -v pkexec >/dev/null; then
+	pkexec /usr/local/sbin/arrow-silver-install-emmc "$@"
+else
+	sudo /usr/local/sbin/arrow-silver-install-emmc "$@"
+fi
+echo
+read -r -p "Press Enter to close this window." _

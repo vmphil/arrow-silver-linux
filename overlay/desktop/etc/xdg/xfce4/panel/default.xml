@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Arrow Silver PineTab2 panel layout (from Daily ARM64, 2026-10-17).
+     Panel 1: top bar (menu, workspaces, tray, clock, actions).
+     Panel 2: bottom centered dock running xfce4-docklike-plugin (plugin-11);
+     its pins and look live in docklike-11.rc next to this file.
+     Docklike also shows open windows, so the top bar has no tasklist. -->
+<channel name="xfce4-panel" version="1.0">
+  <property name="configver" type="int" value="2"/>
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+    <value type="int" value="2"/>
+    <value type="int" value="3"/>
+    <property name="dark-mode" type="bool" value="true"/>
+    <property name="panel-1" type="empty">
+      <property name="position" type="string" value="p=6;x=0;y=0"/>
+      <property name="length" type="uint" value="100"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="icon-size" type="uint" value="16"/>
+      <property name="size" type="uint" value="26"/>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/>
+        <value type="int" value="3"/>
+        <value type="int" value="4"/>
+        <value type="int" value="5"/>
+        <value type="int" value="6"/>
+        <value type="int" value="7"/>
+        <value type="int" value="8"/>
+        <value type="int" value="9"/>
+        <value type="int" value="10"/>
+      </property>
+    </property>
+    <property name="panel-2" type="empty">
+      <property name="position" type="string" value="p=10;x=0;y=0"/>
+      <property name="length" type="uint" value="1"/>
+      <property name="length-adjust" type="bool" value="true"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="autohide-behavior" type="uint" value="0"/>
+      <property name="size" type="uint" value="60"/>
+      <property name="icon-size" type="uint" value="48"/>
+      <property name="enter-opacity" type="uint" value="100"/>
+      <property name="leave-opacity" type="uint" value="100"/>
+      <property name="background-style" type="uint" value="1"/>
+      <!-- Dark slate at 65% alpha; xfwm4 compositing is on in the image. -->
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.0941"/>
+        <value type="double" value="0.1020"/>
+        <value type="double" value="0.1255"/>
+        <value type="double" value="0.65"/>
+      </property>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="11"/>
+      </property>
+    </property>
+    <!-- 2026-10-23: right-side Productivity sidebar (panel-3, vertical, 50 px wide,
+         ~480 px tall). x/y are the panel CENTER. Header (plugin-20) opens ~/Productivity;
+         ships with no app launchers, drag your own onto it. -->
+    <property name="panel-3" type="empty">
+      <property name="mode" type="uint" value="1"/>
+      <property name="position" type="string" value="p=0;x=1255;y=400"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="size" type="uint" value="50"/>
+      <property name="length" type="uint" value="60"/>
+      <property name="length-adjust" type="bool" value="false"/>
+      <property name="icon-size" type="uint" value="0"/>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="20"/>
+      </property>
+    </property>
+  </property>
+  <property name="plugins" type="empty">
+    <property name="plugin-1" type="string" value="applicationsmenu"/>
+    <property name="plugin-3" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-4" type="string" value="pager"/>
+    <property name="plugin-5" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-6" type="string" value="systray">
+      <property name="square-icons" type="bool" value="true"/>
+    </property>
+    <property name="plugin-7" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-8" type="string" value="clock"/>
+    <property name="plugin-9" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-10" type="string" value="actions"/>
+    <property name="plugin-11" type="string" value="docklike"/>
+    <property name="plugin-20" type="string" value="launcher">
+      <property name="show-label" type="bool" value="true"/>
+      <property name="items" type="array">
+        <value type="string" value="arrow-silver-productivity.desktop"/>
+      </property>
+    </property>
+  </property>
+</channel>

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Productivity
+Comment=Open your Productivity folder
+Icon=folder-documents
+Exec=sh -c "mkdir -p \"\\$HOME/Productivity\"; exec exo-open --launch FileManager \"\\$HOME/Productivity\""
+Terminal=false
+NoDisplay=true
+Categories=Utility;

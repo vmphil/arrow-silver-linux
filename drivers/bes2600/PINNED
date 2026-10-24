@@ -1,0 +1,13 @@
+Upstream: DanctNIX linux-pinetab2
+URL: https://codeberg.org/DanctNIX/linux-pinetab2.git
+Tag / ref: v7.1.8-danctnix1
+Commit: 344dbbd1d2e2b540197575e1c00a2b15abb1ab8b
+Path: drivers/staging/bes2600
+Date: 2026-08-10 (UTC)
+License (driver): GPL-2.0-only (Bestechnic / DanctNIX)
+Packaging style: adapted from Mobian https://salsa.debian.org/Mobian-team/devices/bes2600-dkms.git
+  (Mobian vendors source without a git pin; we pin DanctNIX v7.1.8-danctnix1 instead)
+Firmware: NOT included. Proprietary / unclear redistribution. User-supplied only.
+Local patch (arrowsilver2, 2026-10-22): bes_pwr.c power_down_work keeps chip awake
+  (lock instead of unlock; unlock_device marked __maybe_unused); Makefile -DBES_UNIFIED_PM commented out.
+  DKMS version 0~git20260810.344dbbd.nopm. Original package: deb-old/.
