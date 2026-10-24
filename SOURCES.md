@@ -100,3 +100,6 @@ TODO: decide the licence for the other images: `arrow-silver.png` (the default w
 - [ ] A `LICENSE-artwork` file (CC BY 4.0, attribution: Philip Orona / Arrow Silver) for the three wallpapers
 
 *Not legal advice. This file describes how the image is built.*
+
+## Package manifest and Debian sources
+`PACKAGES.txt` lists every package installed in the PineTab2 image (the `dpkg -l` output from the tablet, 1135 packages). Each Debian package's source code is available from [sources.debian.org](https://sources.debian.org/) for current versions, or [snapshot.debian.org](https://snapshot.debian.org/) for the exact version listed. The Arrow Silver-specific packages (`bes2600-dkms` and `spectral-browser`) have their source in this repository, or a link to it.
