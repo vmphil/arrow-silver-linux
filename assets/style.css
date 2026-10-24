@@ -2,7 +2,7 @@
 .hero{background:linear-gradient(rgba(10,12,16,.55),#0d0f13),url(hero.jpg) center/cover;padding:5rem 1.25rem 3rem}
 .hero-in,main{max-width:920px;margin:auto}h1{font-size:clamp(2rem,6vw,3.4rem);margin:0;background:linear-gradient(90deg,#fff,#9aa4b2);-webkit-background-clip:text;color:transparent}
 h1 span{display:block;font-size:.45em;color:#b9c2cf;-webkit-text-fill-color:#b9c2cf}.tag{font-size:1.25rem;color:#fff}
-.hl{padding-left:1.1rem}nav a{color:#cfd6df;margin-right:1rem}.btn{display:inline-block;background:linear-gradient(#e9edf2,#9aa4b2);color:#111;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600}
+.hl{padding-left:1.1rem}nav a{color:#cfd6df;margin-right:1rem}main a{color:#cfd6df}.btn{display:inline-block;background:linear-gradient(#e9edf2,#9aa4b2);color:#111;padding:.6rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:600}
 main{padding:0 1.25rem}section{border-top:1px solid #262b33;padding:1.5rem 0}h2{color:#eef1f5;letter-spacing:.02em}
 code,pre{font-family:ui-monospace,Menlo,monospace;background:#171b21;border-radius:4px}code{padding:.1em .3em;font-size:.9em}
 pre{padding:1rem;overflow-x:auto;border:1px solid #262b33}.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}

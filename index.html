@@ -5,7 +5,7 @@
 <p class="tag">A lightweight Debian + XFCE tablet OS that just works in landscape.</p>
 <p>Arrow Silver is a Debian forky (testing) based ARM64 distro built for the PINE64 PineTab2. It boots straight from a microSD card, starts in landscape with the touchscreen already matched to the screen, and gets you to a clean, fast XFCE desktop with Wi-Fi working out of the box. When you're ready, a built-in installer copies it to the tablet's internal storage.</p>
 <ul class="hl"><li>Reliable landscape orientation and touch, from the boot console to the desktop</li><li>Working BES2600 Wi-Fi with bundled firmware</li><li>XFCE 4.20 with a tablet-friendly dock, Spectral Browser and Firefox ESR</li><li>GNOME Software with Flathub preset for easy app installs</li><li>Boot from SD, with an optional one-step install to eMMC (SPI flash is never touched)</li></ul>
-<nav><a class="btn" href="#download">Download</a><a href="#features">Features</a><a href="#spectral">Spectral Browser</a><a href="#install">Install guide</a></nav></div></header>
+<nav><a class="btn" href="https://github.com/vmphil/arrow-silver-linux/releases/tag/v2026.10.23">Download</a><a href="#features">Features</a><a href="#spectral">Spectral Browser</a><a href="#install">Install guide</a></nav></div></header>
 <main>
 <section id="features"><h2>Overview</h2>
 <p>Raw disk image for the <b>PINE64 PineTab2 (Rockchip RK3566)</b>. Boots from microSD via U-Boot, with an optional installer to internal eMMC. Built from the Arrow Silver ARM64 base system (the same system as the UEFI ISO).</p>
@@ -68,9 +68,10 @@
 <!-- add new known issues above this line -->
 </ul></section>
 <section id="download"><h2>Download</h2>
-<p class="note">The image is coming soon as a <b>GitHub Release</b> on this repository.</p>
+<p class="note">Download the image from the <a href="https://github.com/vmphil/arrow-silver-linux/releases/tag/v2026.10.23">v2026.10.23 GitHub Release</a>.</p>
 <div class="tw"><table><tr><th>File</th><th>Size</th><th>SHA-256</th></tr>
-<tr><td><code>arrow-silver-pinetab2-2026-10-23.img.xz</code></td><td>1,676,594,476 bytes (~1.68 GB)</td><td><code class="hash">fbdcc4bf4726fdb3742d9a516db2281e4bc365f7e2504f7a865357eb02539cfd</code></td></tr></table></div>
+<tr><td><a href="https://github.com/vmphil/arrow-silver-linux/releases/download/v2026.10.23/arrow-silver-pinetab2-2026-10-23.img.xz"><code>arrow-silver-pinetab2-2026-10-23.img.xz</code></a></td><td>1,676,594,476 bytes (~1.68 GB)</td><td><code class="hash">fbdcc4bf4726fdb3742d9a516db2281e4bc365f7e2504f7a865357eb02539cfd</code></td></tr></table></div>
+<p>Checksum: <a href="https://github.com/vmphil/arrow-silver-linux/releases/download/v2026.10.23/arrow-silver-pinetab2-2026-10-23.img.xz.sha256"><code>arrow-silver-pinetab2-2026-10-23.img.xz.sha256</code></a></p>
 <pre>sha256sum -c arrow-silver-pinetab2-2026-10-23.img.xz.sha256
 xz -dc arrow-silver-pinetab2-2026-10-23.img.xz | sudo dd of=/dev/mmcblkX bs=64M status=progress conv=fsync</pre>
 <h3>Default login</h3><p>Username <code>ArrowSilver</code> (case-sensitive), password <code>live</code>, passwordless sudo. Change the password or create your own user after first boot.</p></section>
