@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arrow Silver Linux for PineTab2</title><link rel="stylesheet" href="assets/style.css"></head><body>
+<header class="hero"><div class="hero-in">
+<h1>Arrow Silver Linux <span>for PineTab2</span></h1>
+<p class="tag">A lightweight Debian + XFCE tablet OS that just works in landscape.</p>
+<p>Arrow Silver is a Debian forky (testing) based ARM64 distro built for the PINE64 PineTab2. It boots straight from a microSD card, starts in landscape with the touchscreen already matched to the screen, and gets you to a clean, fast XFCE desktop with Wi-Fi working out of the box. When you're ready, a built-in installer copies it to the tablet's internal storage.</p>
+<ul class="hl"><li>Reliable landscape orientation and touch, from the boot console to the desktop</li><li>Working BES2600 Wi-Fi with bundled firmware</li><li>XFCE 4.20 with a tablet-friendly dock, Spectral Browser and Firefox ESR</li><li>GNOME Software with Flathub preset for easy app installs</li><li>Boot from SD, with an optional one-step install to eMMC (SPI flash is never touched)</li></ul>
+<nav><a class="btn" href="#download">Download</a><a href="#features">Features</a><a href="#install">Install guide</a></nav></div></header>
+<main>
+<section id="features"><h2>Overview</h2>
+<p>Raw disk image for the <b>PINE64 PineTab2 (Rockchip RK3566)</b>. Boots from microSD via U-Boot, with an optional installer to internal eMMC. Built from the Arrow Silver ARM64 base system (the same system as the UEFI ISO).</p>
+<ul><li>Base: Debian forky (testing), ARM64</li><li>Kernel: Debian <code>linux-image-arm64</code> 7.2.11 (7.2.11-1)</li><li>Image release: 2026-10-23</li></ul></section>
+<section><h2>Hardware support</h2><div class="tw"><table>
+<tr><th>Part</th><th>Status</th></tr>
+<tr><td>Boot</td><td>U-Boot inindev/uboot-rockchip v2026.04 (<code>rk3566-pinetab2</code>) at sector 64. <b>SPI flash is never touched.</b></td></tr>
+<tr><td>Device tree</td><td><code>rk3566-pinetab2-v2.0.dtb</code>, patched for BES2600. Early v0.1 hardware needs <code>DTB=rk3566-pinetab2-v0.1.dtb</code> or an edit to <code>/boot/extlinux/extlinux.conf</code>.</td></tr>
+<tr><td>Display</td><td>BOE panel, rockchipdrm; GPU Panfrost (Mali-G52)</td></tr>
+<tr><td>Orientation</td><td>Starts in <b>landscape</b>: Xorg rotates DSI-1, touchscreen matrix matches, xrandr autostart fallback, <code>fbcon=rotate:1</code> for the console</td></tr>
+<tr><td>Touchscreen</td><td>Supported, rotated to match</td></tr>
+<tr><td>Wi-Fi</td><td>BES2600 via patched <code>bes2600-dkms</code> (power-save fix); firmware bundled in <code>/lib/firmware/bes2600/</code></td></tr>
+<tr><td>Battery</td><td><code>xfce4-battery-plugin</code></td></tr>
+<tr><td>Suspend</td><td>s2idle (deep suspend froze the screen on resume)</td></tr>
+<tr><td>Bluetooth</td><td class="bad">Not supported</td></tr>
+<tr><td>Camera</td><td class="bad">Not working</td></tr></table></div></section>
+<section><h2>Desktop &amp; customizations</h2><ul>
+<li>XFCE 4.20 on X11 with LightDM</li><li>Top panel plus centered Docklike dock (48 px icons, 65% translucent, compositing on)</li>
+<li>Dock pins: Files (Thunar), Terminal, Spectral Browser, Firefox ESR, Mousepad, Software, Settings</li>
+<li>Right-side Productivity sidebar launcher opening <code>~/Productivity</code></li>
+<li>Standard home folders via xdg-user-dirs</li><li>Wallpapers: Arrow Silver default plus Neon City, Elf Ranger and Cyber Alley</li>
+<li>xfce4-terminal replaces Yakuake (drop-down terminal doesn't work on PineTab2)</li><li>Volume keys via <code>pactl</code></li>
+<li>Automatic security updates (<code>unattended-upgrades</code>)</li></ul></section>
+<section><h2>Included apps</h2><ul>
+<li>Spectral Browser 1.3.2</li><li>Firefox ESR 153.4.0esr</li><li>GNOME Software 51.0 with Flatpak plugin; Flatpak 1.18.4</li>
+<li>Thunar, xfce4-terminal 1.2.0, Mousepad, xfce4-docklike-plugin 0.5.1</li>
+<li>GStreamer codecs (base, good, bad, ugly, libav, gl, alsa, pulseaudio)</li>
+<li>curl, wget, rsync, parted, cloud-guest-utils, DKMS/build tools with kernel headers</li></ul></section>
+<section id="install"><h2>Install guide</h2><ol>
+<li><b>Flash to microSD</b> (erases the card; replace <code>/dev/mmcblkX</code>):<pre>xz -dc arrow-silver-pinetab2-2026-10-23.img.xz | sudo dd of=/dev/mmcblkX bs=64M status=progress conv=fsync &amp;&amp; sync</pre></li>
+<li><b>Boot from SD.</b> The root partition grows to fill the card on first boot.</li>
+<li><b>Optional eMMC install:</b> System menu → “Install Arrow Silver to internal storage”, or <code>sudo arrow-silver-install-emmc --dry-run</code> to preview. It <b>erases the whole eMMC</b> (type <code>ERASE</code> to confirm), writes GPT with U-Boot at sector 64, a 512 MiB <code>/boot</code> (AS-boot-emmc) and <code>/</code> (AS-root-emmc) with fresh UUIDs, and asks you to create your own user.</li></ol>
+<p>Disk layout: 6 GiB GPT image — 16 MiB reserved for GPT/U-Boot, 512 MiB ext4 <code>/boot</code>, ext4 <code>/</code>.</p></section>
+<section><h2>Networking</h2><ul><li>NetworkManager with <code>nm-applet</code> tray icon</li><li>Network entry in XFCE Settings Manager</li><li>Wi-Fi power saving off</li><li>Wi-Fi check: <code>arrow-silver-bes2600-firmware check ; dkms status</code></li></ul></section>
+<section><h2>App store</h2><ul><li>GNOME Software (“Software” in the dock) with Flatpak plugin</li><li>Flathub remote preset</li><li>Debian apt packages also available</li></ul></section>
+<section id="known-issues"><h2>Known limitations</h2><ul class="issues">
+<li>No Bluetooth (no BES2600 Bluetooth driver)</li>
+<li>The BES2600 Wi-Fi driver is occasionally unstable</li>
+<li>Cameras don't work</li>
+<li>Deep suspend isn't used (s2idle only)</li>
+<li>Yakuake isn't available</li>
+<li>The original PineTab (A64) isn't supported</li>
+<!-- add new known issues above this line -->
+</ul></section>
+<section id="download"><h2>Download</h2>
+<p class="note">The image is coming soon as a <b>GitHub Release</b> on this repository.</p>
+<div class="tw"><table><tr><th>File</th><th>Size</th><th>SHA-256</th></tr>
+<tr><td><code>arrow-silver-pinetab2-2026-10-23.img.xz</code></td><td>1,676,594,476 bytes (~1.68 GB)</td><td><code class="hash">fbdcc4bf4726fdb3742d9a516db2281e4bc365f7e2504f7a865357eb02539cfd</code></td></tr></table></div>
+<pre>sha256sum -c arrow-silver-pinetab2-2026-10-23.img.xz.sha256
+xz -dc arrow-silver-pinetab2-2026-10-23.img.xz | sudo dd of=/dev/mmcblkX bs=64M status=progress conv=fsync</pre>
+<h3>Default login</h3><p>Username <code>ArrowSilver</code> (case-sensitive), password <code>live</code>, passwordless sudo. Change the password or create your own user after first boot.</p></section>
+<section><h2>Credits</h2><ul><li>Debian</li><li>PINE64</li><li>inindev/uboot-rockchip</li><li>pine64-org/bes2600-firmware</li><li>The bes2600 driver project</li></ul></section>
+</main><footer>Arrow Silver Linux · PineTab2 image 2026-10-23</footer></body></html>
