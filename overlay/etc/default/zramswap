@@ -1,0 +1,4 @@
+# Arrow Silver PineTab2 (4 GB RAM): compressed swap in RAM
+ALGO=zstd
+PERCENT=50
+PRIORITY=100

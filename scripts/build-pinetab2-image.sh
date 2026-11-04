@@ -68,6 +68,7 @@ ADD_PKGS=(
 	gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-gl
 	gstreamer1.0-alsa gstreamer1.0-pulseaudio
 	pulseaudio-utils   # 2026-10-19: pactl for the XF86Audio volume-key shortcuts
+	zram-tools power-profiles-daemon   # 2026-11-04: zram swap (zstd, 50%) + power profiles
 	flatpak gnome-software gnome-software-plugin-flatpak   # 2026-10-22: app store + Flathub
 	xdg-user-dirs xdg-user-dirs-gtk   # 2026-10-22: Documents/Music/Pictures/Downloads for new users
 )
@@ -1119,6 +1120,19 @@ info "Flathub remote preconfigured (/etc/flatpak/remotes.d/flathub.flatpakrepo)"
 install -D -m 644 -o root -g root "$OVERLAY/etc/NetworkManager/conf.d/wifi-powersave-off.conf" \
 	"$MNT/etc/NetworkManager/conf.d/wifi-powersave-off.conf"
 info "NetworkManager Wi-Fi power saving off (/etc/NetworkManager/conf.d/wifi-powersave-off.conf)"
+# 2026-11-04: Homey tweaks — zram (zstd, 50%, prio 100), power profiles,
+# no ModemManager (no modem) or NetworkManager-wait-online (slow boot),
+# Firefox ESR WebRender + hardware video decode. XFCE compositing stays ON.
+[[ -f $OVERLAY/etc/default/zramswap ]] || die "Missing overlay etc/default/zramswap"
+install -D -m 644 -o root -g root "$OVERLAY/etc/default/zramswap" "$MNT/etc/default/zramswap"
+chroot_run systemctl enable zramswap.service || warn "could not enable zramswap.service"
+chroot_run systemctl enable power-profiles-daemon.service || warn "could not enable power-profiles-daemon.service"
+chroot_run systemctl mask ModemManager.service NetworkManager-wait-online.service \
+	|| warn "could not mask ModemManager / NetworkManager-wait-online"
+[[ -f $OVERLAY/etc/firefox-esr/arrow-silver-pinetab2.js ]] || die "Missing overlay etc/firefox-esr/arrow-silver-pinetab2.js"
+install -D -m 644 -o root -g root "$OVERLAY/etc/firefox-esr/arrow-silver-pinetab2.js" \
+	"$MNT/etc/firefox-esr/arrow-silver-pinetab2.js"
+info "zram + power-profiles-daemon enabled; ModemManager + NM-wait-online masked; Firefox ESR GPU prefs"
 
 echo 'arrow-silver' >"$MNT/etc/hostname"
 if [[ -f $MNT/etc/hosts ]] && ! grep -q 'arrow-silver' "$MNT/etc/hosts"; then
